@@ -8,10 +8,17 @@ export default function Users() {
   const [loadingOrders, setLoadingOrders] = useState(false);
 
   useEffect(() => {
-    getAllUsers()
-      .then(res => setUsers(res.data))
-      .catch(err => console.error(err));
+    loadUsers();
   }, []);
+
+  const loadUsers = async () => {
+    try {
+      const data = await getAllUsers();
+      setUsers(data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const openOrders = async (user) => {
     setSelectedUser(user);
@@ -19,7 +26,7 @@ export default function Users() {
 
     try {
       const data = await getUserOrders(user.telegramId);
-      setOrders(data);
+      setOrders(data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -27,30 +34,80 @@ export default function Users() {
     }
   };
 
+  /* ===============================
+     📥 DOWNLOAD CSV FUNCTION
+  ================================= */
+  const downloadCSV = () => {
+    if (!orders.length) return;
+
+    const headers = [
+      "Order ID",
+      "Service",
+      "Target",
+      "Quantity",
+      "Price",
+      "Status",
+      "Panel Order ID",
+      "Created At",
+    ];
+
+    const rows = orders.map((o) => [
+      o.orderId,
+      o.serviceName,
+      o.target,
+      o.quantity,
+      o.price,
+      o.status,
+      o.panelOrderId ?? "",
+      o.createdAt,
+    ]);
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers, ...rows]
+        .map((row) => row.map((val) => `"${val}"`).join(","))
+        .join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `user_${selectedUser.telegramId}_orders.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="p-6">
-      <h2 className="text-3xl font-bold mb-6 text-gray-800">
+      <h2 className="text-3xl font-bold mb-6 text-gray-800 dark:text-gray-100">
         👥 Users Management
       </h2>
 
-      <div className="bg-white shadow-xl rounded-xl overflow-x-auto">
+      <div className="bg-white dark:bg-gray-900 shadow-xl rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-100 text-gray-700">
+          <thead className="bg-gray-100 dark:bg-gray-800">
             <tr>
               <th className="p-4 text-left">Telegram ID</th>
               <th className="p-4 text-left">Username</th>
-              <th className="p-4 text-right">Orders</th>
+              <th className="p-4 text-left">First Name</th>
+              <th className="p-4 text-left">Total Orders</th>
+              <th className="p-4 text-right">Action</th>
             </tr>
           </thead>
 
           <tbody>
-            {users.map(u => (
+            {users.map((u) => (
               <tr
                 key={u.telegramId}
-                className="border-t hover:bg-gray-50 transition"
+                className="border-t dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
               >
                 <td className="p-4 font-medium">{u.telegramId}</td>
                 <td className="p-4">{u.username || "-"}</td>
+                <td className="p-4">{u.firstName || "-"}</td>
+                <td className="p-4">{u.totalOrders}</td>
                 <td className="p-4 text-right">
                   <button
                     onClick={() => openOrders(u)}
@@ -64,7 +121,7 @@ export default function Users() {
 
             {users.length === 0 && (
               <tr>
-                <td colSpan="3" className="p-6 text-center text-gray-500">
+                <td colSpan="5" className="p-6 text-center text-gray-500">
                   No users found
                 </td>
               </tr>
@@ -73,20 +130,33 @@ export default function Users() {
         </table>
       </div>
 
-      {/* ---------- Orders Modal ---------- */}
+      {/* =============================
+         📦 ORDERS MODAL
+      ============================== */}
       {selectedUser && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white w-full max-w-3xl rounded-xl shadow-xl">
-            <div className="flex justify-between items-center p-4 border-b">
+          <div className="bg-white dark:bg-gray-900 w-full max-w-5xl rounded-xl shadow-xl">
+            <div className="flex justify-between items-center p-4 border-b dark:border-gray-700">
               <h3 className="text-xl font-bold">
-                📦 Orders of {selectedUser.username || selectedUser.telegramId}
+                📦 Orders of{" "}
+                {selectedUser.username || selectedUser.telegramId}
               </h3>
-              <button
-                onClick={() => setSelectedUser(null)}
-                className="text-gray-500 hover:text-red-600 text-xl"
-              >
-                ✕
-              </button>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={downloadCSV}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                >
+                  ⬇ Download CSV
+                </button>
+
+                <button
+                  onClick={() => setSelectedUser(null)}
+                  className="text-gray-500 hover:text-red-600 text-xl"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="p-4 max-h-[70vh] overflow-y-auto">
@@ -96,23 +166,30 @@ export default function Users() {
                 <p className="text-gray-500">No orders found</p>
               ) : (
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-100">
+                  <thead className="bg-gray-100 dark:bg-gray-800">
                     <tr>
                       <th className="p-2 text-left">Order ID</th>
                       <th className="p-2 text-left">Service</th>
+                      <th className="p-2 text-left">Quantity</th>
                       <th className="p-2 text-left">Status</th>
                       <th className="p-2 text-right">Price</th>
+                      <th className="p-2 text-left">Created</th>
                     </tr>
                   </thead>
+
                   <tbody>
-                    {orders.map(o => (
-                      <tr key={o.id} className="border-t">
-                        <td className="p-2">{o.id}</td>
+                    {orders.map((o) => (
+                      <tr key={o.orderId} className="border-t">
+                        <td className="p-2">{o.orderId}</td>
                         <td className="p-2">{o.serviceName}</td>
+                        <td className="p-2">{o.quantity}</td>
                         <td className="p-2">
                           <StatusBadge status={o.status} />
                         </td>
                         <td className="p-2 text-right">₹{o.price}</td>
+                        <td className="p-2">
+                          {new Date(o.createdAt).toLocaleString()}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -126,19 +203,27 @@ export default function Users() {
   );
 }
 
-/* ---------- Status Badge ---------- */
+/* =============================
+   STATUS BADGE
+============================= */
 function StatusBadge({ status }) {
   const base = "px-3 py-1 rounded-full text-xs font-semibold";
 
   const colors = {
-    PENDING: "bg-yellow-100 text-yellow-700",
-    PROCESSING: "bg-blue-100 text-blue-700",
+    PAYMENT_PENDING: "bg-yellow-100 text-yellow-700",
+    PAID: "bg-blue-100 text-blue-700",
+    PROCESSING: "bg-indigo-100 text-indigo-700",
     COMPLETED: "bg-green-100 text-green-700",
-    FAILED: "bg-red-100 text-red-700",
+    PROVIDER_FAILED: "bg-orange-100 text-orange-700",
+    CANCELLED: "bg-red-100 text-red-700",
   };
 
   return (
-    <span className={`${base} ${colors[status] || "bg-gray-200 text-gray-700"}`}>
+    <span
+      className={`${base} ${
+        colors[status] || "bg-gray-200 text-gray-700"
+      }`}
+    >
       {status}
     </span>
   );
