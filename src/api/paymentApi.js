@@ -1,11 +1,11 @@
 import api from "./axios";
 
 export const getAllPayments = async () => {
-  const res = await api.get("/payments");
+  const res = await api.get("/admin/payments");
   return res.data;
 };
 
 export const getPaymentStats = async () => {
-  const res = await api.get("/payments/stats");
+  const res = await api.get("/admin/payments/stats");
   return res.data;
 };
